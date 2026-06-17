@@ -1,0 +1,18 @@
+# Tells MoveIt how to hand off planned trajectories to ros2_control.
+# MoveIt sends a FollowJointTrajectory action to 'new_arm_controller', which is
+# the JointTrajectoryController defined in ros2_controllers.yaml.
+moveit_controller_manager: moveit_simple_controller_manager/MoveItSimpleControllerManager
+
+moveit_simple_controller_manager:
+  controller_names:
+    - new_arm_controller
+
+  new_arm_controller:
+    type: FollowJointTrajectory
+    action_ns: follow_joint_trajectory
+    default: true
+    # Only the 3 actuated joints are commanded; the passive wrist is not.
+    joints:
+      - after_base_full_joint
+      - link1_joint
+      - link2_joint

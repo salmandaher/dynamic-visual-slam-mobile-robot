@@ -1,0 +1,209 @@
+{
+  "collisions": [
+    {
+      "geometry": {
+        "exported": {
+          "stl": {
+            "export_operation": "blender_export",
+            "filepath": "..\\meshes\\stl\\arm base.stl",
+            "operations": [
+              "_initiated_in_blender"
+            ]
+          }
+        },
+        "geometry_type": "mesh",
+        "imported": "input file not known",
+        "mesh_orientation": {
+          "forward": "Y",
+          "up": "Z"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "unique_name": "arm base"
+      },
+      "link": "arm_base_link",
+      "name": "arm base_collision",
+      "origin": {
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "primitives": []
+    },
+    {
+      "geometry": {
+        "exported": {
+          "stl": {
+            "export_operation": "blender_export",
+            "filepath": "..\\meshes\\stl\\after base full.stl",
+            "operations": [
+              "_initiated_in_blender"
+            ]
+          }
+        },
+        "geometry_type": "mesh",
+        "imported": "input file not known",
+        "mesh_orientation": {
+          "forward": "Y",
+          "up": "Z"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "unique_name": "after base full"
+      },
+      "link": "after_base_full_link",
+      "name": "after base full_collision",
+      "origin": {
+        "position": [
+          -8.940696716308594e-08,
+          3.5762786865234375e-07,
+          0.0
+        ],
+        "relative_to": "after_base_full_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "primitives": []
+    },
+    {
+      "geometry": {
+        "exported": {
+          "stl": {
+            "export_operation": "blender_export",
+            "filepath": "..\\meshes\\stl\\link1.stl",
+            "operations": [
+              "_initiated_in_blender"
+            ]
+          }
+        },
+        "geometry_type": "mesh",
+        "imported": "input file not known",
+        "mesh_orientation": {
+          "forward": "Y",
+          "up": "Z"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "unique_name": "link1"
+      },
+      "link": "link1_link",
+      "name": "link1_collision",
+      "origin": {
+        "position": [
+          1.9073486328125e-06,
+          2.384185791015625e-07,
+          -7.62939453125e-06
+        ],
+        "relative_to": "link1_link",
+        "rotation": [
+          0.0,
+          0.0,
+          1.570796370506284
+        ]
+      },
+      "primitives": []
+    },
+    {
+      "geometry": {
+        "exported": {
+          "stl": {
+            "export_operation": "blender_export",
+            "filepath": "..\\meshes\\stl\\link2.stl",
+            "operations": [
+              "_initiated_in_blender"
+            ]
+          }
+        },
+        "geometry_type": "mesh",
+        "imported": "input file not known",
+        "mesh_orientation": {
+          "forward": "Y",
+          "up": "Z"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "unique_name": "link2"
+      },
+      "link": "link2_link",
+      "name": "link2_collision",
+      "origin": {
+        "position": [
+          -1.9073486328125e-06,
+          -9.5367431640625e-07,
+          3.0517578125e-05
+        ],
+        "relative_to": "link2_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "primitives": []
+    },
+    {
+      "geometry": {
+        "exported": {
+          "stl": {
+            "export_operation": "blender_export",
+            "filepath": "..\\meshes\\stl\\end_effector.stl",
+            "operations": [
+              "_initiated_in_blender"
+            ]
+          }
+        },
+        "geometry_type": "mesh",
+        "imported": "input file not known",
+        "mesh_orientation": {
+          "forward": "Y",
+          "up": "Z"
+        },
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "unique_name": "end_effector"
+      },
+      "link": "end_effector_link",
+      "name": "end_effector_collision",
+      "origin": {
+        "position": [
+          -1.5258789971994702e-05,
+          -2.980232416405215e-08,
+          -3.0517579943989404e-05
+        ],
+        "relative_to": "end_effector_link",
+        "rotation": [
+          -0.0,
+          1.5707963128858307,
+          0.0
+        ]
+      },
+      "primitives": []
+    }
+  ]
+}

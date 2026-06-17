@@ -1,0 +1,42 @@
+arm_bridge:
+  ros__parameters:
+    # The 3 actuated joints, in servo order (servo 1, 2, 3).
+    actuated_joints: ["after_base_full_joint", "link1_joint", "link2_joint"]
+
+    # --- rad <-> pulse calibration:  pulse = scale * theta_rad + offset ---
+    # SEEDED from matching the URDF joint limits to the company servo
+    # ranges/guards in _espmax.cpp (scale = 1000 pulses / 240deg = 238.7324/rad).
+    #   base:     URDF [-2.618, 1.571] rad ([-150,90]deg) -> pulse [0, 1000]
+    #   shoulder: URDF [ 0.733, 3.665] rad ([ 42,210]deg) -> pulse [700, 0] (inverted)
+    #   elbow:    URDF [-0.122, ...]   rad ([ -7, ...]deg) -> pulse [470, ...]
+    # >>> VERIFY ON HARDWARE: jog each joint to two known angles, read the pulses
+    #     on /arm/servo_feedback, and solve scale/offset if these are off. <<<
+    scale:     [ 238.7324, -238.7324, 238.7324]
+    offset:    [ 625.0,     875.0,    500.0]
+    pulse_min: [ 0.0,       0.0,      470.0]    # mirrors firmware safety guards
+    pulse_max: [ 1000.0,    700.0,    1000.0]
+
+    # --- passive 4th joint (mechanically coupled wrist, no servo) ---
+    # theta_passive = passive_offset + c_sh*theta_shoulder + c_el*theta_elbow
+    # default = 2*pi - pi/2 - theta_shoulder - theta_elbow (user-provided).
+    passive_joint: "end_effector_joint"
+    passive_offset: 4.712389        # 2*pi - pi/2 (raw; wrapped into (-pi,pi] in code)
+    passive_coeff_shoulder: -1.0
+    passive_coeff_elbow: -1.0
+    passive_min: -3.14              # URDF end_effector_joint limits
+    passive_max:  3.14
+
+    # --- execution ---
+    # Must match moveit_controllers.yaml: controller 'new_arm_controller' with
+    # action_ns 'follow_joint_trajectory' -> /new_arm_controller/follow_joint_trajectory.
+    follow_joint_trajectory_action: "/new_arm_controller/follow_joint_trajectory"
+    default_move_time_ms: 1000.0    # used by manual /arm/joint_command jogs
+    min_segment_time_ms: 200.0      # floor on per-waypoint move time
+    feedback_rate_hz: 20.0          # /joint_states publish rate
+
+    # If no /arm/servo_feedback arrives within this many seconds, the bridge
+    # ECHOES commanded positions so RViz still animates with no arm attached.
+    # When the ESP32 is connected (micro-ROS agent up), real feedback takes over.
+    feedback_timeout: 0.5           # s
+    # Where the arm sits at startup (rad), for /joint_states before any command.
+    initial_positions: [0.0, 0.0, 0.0]

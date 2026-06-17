@@ -1,0 +1,92 @@
+{
+  "joints": [
+    {
+      "child": "after_base_full_link",
+      "constraint_axes": [],
+      "cut_joint": false,
+      "joint_dependencies": [],
+      "joint_type": "revolute",
+      "name": "after base full_link_joint",
+      "origin": {
+        "position": [
+          0.4323912520641835,
+          -1.8406250381842277,
+          83.96122479207664
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "parent": "arm_base_link"
+    },
+    {
+      "child": "link1_link",
+      "constraint_axes": [],
+      "cut_joint": false,
+      "joint_dependencies": [],
+      "joint_type": "revolute",
+      "name": "link1_link_joint",
+      "origin": {
+        "position": [
+          8.142237603664398,
+          -0.43238914012908936,
+          1.6171798706054688
+        ],
+        "relative_to": "after_base_full_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "parent": "after_base_full_link"
+    },
+    {
+      "child": "link2_link",
+      "constraint_axes": [],
+      "cut_joint": false,
+      "joint_dependencies": [],
+      "joint_type": "revolute",
+      "name": "link2_link_joint",
+      "origin": {
+        "position": [
+          0.9999980926513672,
+          -8.559999465942383,
+          128.3961181640625
+        ],
+        "relative_to": "link1_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "parent": "link1_link"
+    },
+    {
+      "child": "end_effector_link",
+      "constraint_axes": [],
+      "cut_joint": false,
+      "joint_dependencies": [],
+      "joint_type": "revolute",
+      "name": "end_effector_link_joint",
+      "origin": {
+        "position": [
+          125.31938552856445,
+          10.990004554390907,
+          -57.784515380859375
+        ],
+        "relative_to": "link2_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "parent": "link2_link"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Starting joint values for the mock hardware at launch (all at home).
+initial_positions:
+  after_base_full_joint: 0.0
+  link1_joint: 0.0
+  link2_joint: 0.0
+  end_effector_joint: 0.0

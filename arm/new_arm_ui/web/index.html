@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>new_arm control</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>new_arm</h1>
+    <span id="conn" class="badge off">disconnected</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Cartesian goal <small>(via MoveIt)</small></h2>
+      <div class="row">
+        <label>X <input id="gx" type="number" step="0.01" value="0.135" /></label>
+        <label>Y <input id="gy" type="number" step="0.01" value="0.0" /></label>
+        <label>Z <input id="gz" type="number" step="0.01" value="0.156" /></label>
+      </div>
+      <div class="row">
+        <label>time (s) <input id="gtime" type="number" step="0.5" value="2.0" /></label>
+        <button id="goto" class="primary">Plan &amp; Execute</button>
+      </div>
+      <div class="row named">
+        <span>named:</span>
+        <span id="named-buttons"></span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Joint jog <small>(raw, no planning)</small></h2>
+      <div id="jog-sliders"></div>
+      <div class="row">
+        <label>time (s) <input id="jtime" type="number" step="0.2" value="1.0" /></label>
+        <label class="chk"><input id="jlive" type="checkbox" /> live</label>
+        <button id="jog">Send Jog</button>
+        <button id="stop" class="danger">Stop</button>
+      </div>
+    </section>
+
+    <section class="panel viz">
+      <h2>Live view</h2>
+      <div class="canvases">
+        <figure>
+          <figcaption>top (X right, Y up) &mdash; click to set X,Y</figcaption>
+          <canvas id="top" width="320" height="320"></canvas>
+        </figure>
+        <figure>
+          <figcaption>side (radius, Z up) &mdash; click to set Z</figcaption>
+          <canvas id="side" width="320" height="320"></canvas>
+        </figure>
+      </div>
+      <div id="state-readout" class="readout"></div>
+    </section>
+
+    <section class="panel log">
+      <h2>Status</h2>
+      <div id="log"></div>
+    </section>
+  </main>
+
+  <script src="fk.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

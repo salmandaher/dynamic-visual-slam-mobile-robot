@@ -1,0 +1,13 @@
+# IK solver configuration for the 'new_arm' planning group.
+#
+# The arm has 3 ACTUATED DOF (one yaw + two pitches); the wrist is a passive
+# leveling joint (see SRDF). It cannot achieve an arbitrary 6-DOF orientation, so
+# we use position-only IK: the solver matches the target XYZ of the wrist tip and
+# leaves orientation free. With 3 actuated joints solving for a 3D position this is
+# well-posed. Mirrors the position-only scipy solver in new_arm_ik.
+new_arm:
+  kinematics_solver: kdl_kinematics_plugin/KDLKinematicsPlugin
+  kinematics_solver_search_resolution: 0.005
+  kinematics_solver_timeout: 0.05
+  kinematics_solver_attempts: 3
+  position_only_ik: true

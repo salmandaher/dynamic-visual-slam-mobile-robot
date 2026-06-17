@@ -1,0 +1,5 @@
+# 3D perception / sensor manager configuration (Octomap from depth cameras).
+# This arm has no depth sensors configured, so the list is empty: MoveIt plans
+# only against the static planning scene. Add a PointCloudOctomapUpdater entry
+# here later if you mount a depth camera.
+sensors: []

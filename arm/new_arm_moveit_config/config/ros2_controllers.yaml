@@ -1,0 +1,27 @@
+# ros2_control side: defines the controllers that actually run on the (mock)
+# hardware. The controller_manager spawns a JointStateBroadcaster (publishes
+# /joint_states) and a JointTrajectoryController (executes MoveIt trajectories).
+controller_manager:
+  ros__parameters:
+    update_rate: 100  # Hz
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    new_arm_controller:
+      type: joint_trajectory_controller/JointTrajectoryController
+
+new_arm_controller:
+  ros__parameters:
+    # Only the 3 actuated joints. The passive end_effector_joint is still broadcast
+    # by the joint_state_broadcaster (it has a state interface in the URDF) but is
+    # not part of any controlled trajectory.
+    joints:
+      - after_base_full_joint
+      - link1_joint
+      - link2_joint
+    command_interfaces:
+      - position
+    state_interfaces:
+      - position
+      - velocity

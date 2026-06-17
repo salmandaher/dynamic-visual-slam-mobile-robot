@@ -1,0 +1,17 @@
+{
+  "name": "new_arm_web",
+  "version": "0.1.0",
+  "description": "Web UI + ROS 2 bridge (rclnodejs) for the new_arm. Requires Node 18/20 LTS.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18 <21"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "rclnodejs": "^0.27.0",
+    "ws": "^8.18.0"
+  }
+}

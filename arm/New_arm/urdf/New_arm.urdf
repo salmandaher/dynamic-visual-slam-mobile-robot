@@ -1,0 +1,115 @@
+<robot name="New_arm" version="1.0">
+  <joint name="after base full_link_joint" type="revolute">
+    <limit lower="-3.14000" upper="3.14000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="0.43239 -1.84063 83.96122"/>
+    <parent link="arm_base_link"/>
+    <child link="after_base_full_link"/>
+    <axis xyz="0.00000 0.00000 1.00000"/>
+  </joint>
+  <joint name="link1_link_joint" type="revolute">
+    <limit lower="-3.14000" upper="3.14000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="8.14224 -0.43239 1.61718"/>
+    <parent link="after_base_full_link"/>
+    <child link="link1_link"/>
+    <axis xyz="0.00000 1.00000 0.00000"/>
+  </joint>
+  <joint name="link2_link_joint" type="revolute">
+    <limit lower="-3.14000" upper="3.14000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="1.00000 -8.56000 128.39612"/>
+    <parent link="link1_link"/>
+    <child link="link2_link"/>
+    <axis xyz="0.00000 1.00000 0.00000"/>
+  </joint>
+  <joint name="end_effector_link_joint" type="revolute">
+    <limit lower="-3.14000" upper="3.14000" effort="0.00000" velocity="0.00000"/>
+    <origin rpy="0.00000 0.00000 0.00000" xyz="125.31939 10.99000 -57.78452"/>
+    <parent link="link2_link"/>
+    <child link="end_effector_link"/>
+    <axis xyz="0.00000 1.00000 0.00000"/>
+  </joint>
+  <link name="arm_base_link">
+    <collision name="arm base_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/arm base.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </collision>
+    <visual name="arm base">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/arm base.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="after_base_full_link">
+    <collision name="after base full_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/after base full.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </collision>
+    <visual name="after base full">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/after base full.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="link1_link">
+    <collision name="link1_collision">
+      <origin rpy="0.00000 0.00000 1.57080" xyz="0.00000 0.00000 -0.00001"/>
+      <geometry>
+        <mesh filename="../meshes/stl/link1.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="134.79547" ixy="-0.00000" ixz="-1.35022" iyy="134.47944" iyz="-0.00000" izz="5.42704"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.84107 2.90000 64.94700"/>
+      <mass value="0.10000"/>
+    </inertial>
+    <visual name="link1">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 1.57080" xyz="0.00000 0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/link1.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="link2_link">
+    <collision name="link2_collision">
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 -0.00000 0.00003"/>
+      <geometry>
+        <mesh filename="../meshes/stl/link2.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <inertia ixx="46.58794" ixy="-5.28941" ixz="75.92046" iyy="220.45627" iyz="1.19376" izz="187.76503"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="51.92619 10.92440 -15.11619"/>
+      <mass value="0.10000"/>
+    </inertial>
+    <visual name="link2">
+      <material name="None"/>
+      <origin rpy="0.00000 0.00000 0.00000" xyz="-0.00000 -0.00000 0.00000"/>
+      <geometry>
+        <mesh filename="../meshes/stl/link2.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </visual>
+  </link>
+  <link name="end_effector_link">
+    <collision name="end_effector_collision">
+      <origin rpy="-0.00000 1.57080 0.00000" xyz="-0.00002 -0.00000 -0.00003"/>
+      <geometry>
+        <mesh filename="../meshes/stl/end_effector.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </collision>
+    <visual name="end_effector">
+      <material name="None"/>
+      <origin rpy="-0.00000 1.57080 0.00000" xyz="0.00001 -0.00000 -0.00001"/>
+      <geometry>
+        <mesh filename="../meshes/stl/end_effector.stl" scale="1.00000 1.00000 1.00000"/>
+      </geometry>
+    </visual>
+  </link>
+</robot>

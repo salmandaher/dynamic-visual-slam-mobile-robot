@@ -1,0 +1,28 @@
+# ---- Python / ROS 2 (ament/colcon) build artifacts ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+install/
+log/
+
+# ---- Node (web UI) ----
+node_modules/
+npm-debug.log*
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- Large simulation artifacts (kept out of git on purpose) ----
+# Isaac Sim USD assets, RL checkpoints, render dumps and SDG datasets live on
+# the local DataDrive (system disk is small). Regenerate via arm/new_arm_isaac
+# scripts (see arm/RUNBOOK.md). Curated showcase images are committed under docs/.
+*.usd
+*.usdc
+*.usda
+logs/
+checkpoints/

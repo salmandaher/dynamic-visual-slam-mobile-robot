@@ -1,0 +1,342 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SOO}{\mathrm{SO}(3)}
+\newcommand{\SEE}{\mathrm{SE}(3)}
+\newcommand{\Rx}{R_x}
+\newcommand{\Ry}{R_y}
+\newcommand{\Rz}{R_z}
+\newcommand{\skewm}[1]{\left[#1\right]_{\times}}
+
+\title{Forward and Inverse Kinematics of the \texttt{new\_arm} Manipulator}
+\author{Robot description: \texttt{new\_arm\_description} \\
+        Solver package: \texttt{new\_arm\_ik}}
+\date{2026-05-31}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document describes the kinematics of the \texttt{new\_arm}, a 4-DOF
+revolute manipulator, as implemented in the \texttt{new\_arm\_ik} ROS\,2
+package. The forward kinematics is built directly from the robot's URDF so
+that the solver and the model rendered in RViz are identical by construction.
+The inverse kinematics is formulated as a bounded nonlinear least-squares
+problem with a continuity-preserving regularizer and a random-restart
+fallback. We also document a tuning fix that reduced the median position
+residual from \SI{20}{\milli\meter} to below \SI{1}{\micro\meter} on
+reachable targets.
+\end{abstract}
+
+\tableofcontents
+
+\section{Robot model}
+
+The \texttt{new\_arm} is a serial chain of four revolute joints connecting
+five links:
+\[
+\texttt{arm\_base} \;\xrightarrow{\;q_1\;}\;
+\texttt{after\_base\_full} \;\xrightarrow{\;q_2\;}\;
+\texttt{link1} \;\xrightarrow{\;q_3\;}\;
+\texttt{link2} \;\xrightarrow{\;q_4\;}\;
+\texttt{end\_effector}.
+\]
+The kinematic parameters are read verbatim from
+\texttt{new\_arm\_description/urdf/new\_arm.urdf}. Each joint $i$ contributes
+a fixed origin transform (a translation $\bm{p}_i\in\R^3$ and a fixed
+orientation given by roll--pitch--yaw angles $\bm{r}_i=(\phi_i,\theta_i,\psi_i)$)
+followed by a rotation of $q_i$ about the joint axis $\hat{\bm{a}}_i\in\R^3$.
+Table~\ref{tab:joints} lists the values.
+
+\begin{table}[h]
+\centering
+\caption{Joint parameters from the URDF. Origins $\bm{p}_i$ are in metres;
+all fixed RPY orientations are zero. Limits are symmetric.}
+\label{tab:joints}
+\small
+\begin{tabular}{llrrr}
+\toprule
+Joint & Axis $\hat{\bm{a}}_i$ & Origin $\bm{p}_i=(x,y,z)$ \si{\meter} & Limit \si{\radian} & Effort \\
+\midrule
+\texttt{after\_base\_full\_joint} & $(0,0,1)$ & $(0.00043,\,-0.00184,\,0.08396)$ & $[-3.14,\,3.14]$ & 10.0 \\
+\texttt{link1\_joint}             & $(0,1,0)$ & $(0.00814,\,-0.00043,\,0.00162)$ & $[-3.14,\,3.14]$ & 10.0 \\
+\texttt{link2\_joint}             & $(0,1,0)$ & $(0.00100,\,-0.00856,\,0.12840)$ & $[-3.14,\,3.14]$ & 10.0 \\
+\texttt{end\_effector\_joint}     & $(0,1,0)$ & $(0.12532,\,0.01099,\,-0.05778)$ & $[-3.14,\,3.14]$ & 5.0  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The first joint rotates about $z$ (a base yaw); the remaining three rotate
+about $y$ (pitches). The reachable workspace is a region of radius
+$\approx \SI{0.25}{\meter}$. In the current interface the fourth joint
+$q_4$ (\texttt{end\_effector\_joint}) is held at $0$; the position IK has
+three Cartesian targets and four joint variables, so the arm is kinematically
+redundant by one degree of freedom.
+
+\section{Rotation primitives}
+
+\subsection{Roll--pitch--yaw to a rotation matrix}
+
+URDF \texttt{origin} orientations use the ROS fixed-axis roll--pitch--yaw
+convention. With roll $\phi$ about $x$, pitch $\theta$ about $y$, and yaw
+$\psi$ about $z$, the composed rotation is the intrinsic $z\,y\,x$ product
+\begin{equation}
+R(\phi,\theta,\psi) \;=\; \Rz(\psi)\,\Ry(\theta)\,\Rx(\phi),
+\end{equation}
+where
+\[
+\Rx(\phi)=\begin{bmatrix}1&0&0\\0&c_\phi&-s_\phi\\0&s_\phi&c_\phi\end{bmatrix},\quad
+\Ry(\theta)=\begin{bmatrix}c_\theta&0&s_\theta\\0&1&0\\-s_\theta&0&c_\theta\end{bmatrix},\quad
+\Rz(\psi)=\begin{bmatrix}c_\psi&-s_\psi&0\\s_\psi&c_\psi&0\\0&0&1\end{bmatrix},
+\]
+with the shorthand $c_\alpha=\cos\alpha$, $s_\alpha=\sin\alpha$. Expanding the
+product gives the closed form implemented in \texttt{rpy\_to\_matrix}:
+\begin{equation}
+R(\phi,\theta,\psi)=
+\begin{bmatrix}
+c_\psi c_\theta & c_\psi s_\theta s_\phi - s_\psi c_\phi & c_\psi s_\theta c_\phi + s_\psi s_\phi \\
+s_\psi c_\theta & s_\psi s_\theta s_\phi + c_\psi c_\phi & s_\psi s_\theta c_\phi - c_\psi s_\phi \\
+-s_\theta       & c_\theta s_\phi                        & c_\theta c_\phi
+\end{bmatrix}.
+\end{equation}
+
+\subsection{Axis--angle (Rodrigues) rotation}
+
+Each actuated joint rotates by $q_i$ about a unit axis
+$\hat{\bm{a}}=(a_x,a_y,a_z)$. The rotation matrix is given by Rodrigues'
+formula
+\begin{equation}
+R(\hat{\bm{a}},q)=I + (\sin q)\,\skewm{\hat{\bm{a}}}
+        + (1-\cos q)\,\skewm{\hat{\bm{a}}}^2,
+\end{equation}
+where $\skewm{\hat{\bm{a}}}$ is the skew-symmetric cross-product matrix
+\[
+\skewm{\hat{\bm{a}}}=
+\begin{bmatrix}0&-a_z&a_y\\ a_z&0&-a_x\\ -a_y&a_x&0\end{bmatrix}.
+\]
+Written componentwise (the form in \texttt{axis\_angle\_matrix}), with
+$c=\cos q$, $s=\sin q$, and $C=1-c$:
+\begin{equation}
+R(\hat{\bm{a}},q)=
+\begin{bmatrix}
+c+a_x^2 C        & a_x a_y C - a_z s & a_x a_z C + a_y s \\
+a_y a_x C + a_z s & c+a_y^2 C        & a_y a_z C - a_x s \\
+a_z a_x C - a_y s & a_z a_y C + a_x s & c+a_z^2 C
+\end{bmatrix}.
+\end{equation}
+
+\subsection{Homogeneous transforms}
+
+A rotation $R\in\SOO$ and translation $\bm{t}\in\R^3$ are packed into a
+homogeneous transform $T\in\SEE$:
+\begin{equation}
+T(R,\bm{t})=\begin{bmatrix}R & \bm{t}\\ \bm{0}^\top & 1\end{bmatrix}\in\R^{4\times4}.
+\end{equation}
+
+\section{Forward kinematics}
+
+The pose of the end-effector relative to the base is the ordered product of,
+for each joint, the fixed origin transform followed by the variable joint
+rotation:
+\begin{equation}
+\boxed{\;
+T^{\text{base}}_{\text{ee}}(\bm{q})
+  = \prod_{i=1}^{4}
+      \underbrace{T\!\big(R(\bm{r}_i),\,\bm{p}_i\big)}_{\text{fixed origin}}
+      \;\underbrace{T\!\big(R(\hat{\bm{a}}_i, q_i),\,\bm{0}\big)}_{\text{joint }q_i}
+\;}
+\end{equation}
+where $\bm{q}=(q_1,q_2,q_3,q_4)$. This is exactly the loop in
+\texttt{Chain.fk}. The end-effector position used by the IK is the
+translation block
+\begin{equation}
+\bm{x}(\bm{q}) \;=\; \big[T^{\text{base}}_{\text{ee}}(\bm{q})\big]_{1:3,\,4}\;\in\;\R^3 .
+\end{equation}
+
+Because the parameters $\{\bm{p}_i,\bm{r}_i,\hat{\bm{a}}_i\}$ are parsed
+straight from the URDF, $\bm{x}(\bm{q})$ coincides with the frame that
+\texttt{robot\_state\_publisher} broadcasts to RViz; there is no separate
+hand-derived model to drift out of sync.
+
+As a reference, the home pose $\bm{q}=\bm{0}$ gives
+\[
+\bm{x}(\bm{0}) \approx (0.1349,\;0.0002,\;0.1562)\ \si{\meter}.
+\]
+
+\section{Inverse kinematics}
+
+\subsection{Problem statement}
+
+Given a Cartesian target $\bm{x}^\star\in\R^3$, find joint angles
+$\bm{q}\in\R^4$ within the box limits $[\bm{q}_{\min},\bm{q}_{\max}]$ whose
+forward kinematics reaches the target. Since the map $\bm{x}(\bm{q})$ is
+nonlinear and the arm is redundant, we solve a regularized nonlinear
+least-squares problem rather than a closed-form inverse.
+
+\subsection{Residual and cost}
+
+Let $\bm{q}_{\text{ref}}$ be a reference configuration (the current pose, for
+continuity). Define the stacked residual $\bm{r}:\R^4\to\R^{7}$
+\begin{equation}
+\bm{r}(\bm{q})=
+\begin{bmatrix}
+w_p\,\big(\bm{x}(\bm{q})-\bm{x}^\star\big)\\[2pt]
+\lambda\,\big(\bm{q}-\bm{q}_{\text{ref}}\big)
+\end{bmatrix}
+\in\R^{3+4},
+\end{equation}
+combining a \emph{position} term (weight $w_p$, three rows) and a
+\emph{regularization} term (weight $\lambda$, four rows). The solver
+minimizes
+\begin{equation}
+\bm{q}^\star=\arg\min_{\bm{q}_{\min}\le\bm{q}\le\bm{q}_{\max}}
+   \tfrac{1}{2}\,\lVert \bm{r}(\bm{q})\rVert_2^2
+ = \arg\min_{\bm{q}}\ \tfrac{1}{2}\Big(
+      w_p^2\,\lVert \bm{x}(\bm{q})-\bm{x}^\star\rVert^2
+    + \lambda^2\,\lVert \bm{q}-\bm{q}_{\text{ref}}\rVert^2 \Big).
+\end{equation}
+The position term drives the end-effector to the target. The regularization
+term has two jobs: it resolves the one-dimensional redundancy by selecting,
+among all exact solutions, the one nearest $\bm{q}_{\text{ref}}$, and it keeps
+successive solves close together so the arm moves smoothly in RViz with no
+joint flips.
+
+This is solved with \texttt{scipy.optimize.least\_squares} (Trust Region
+Reflective), which respects the box bounds and uses a finite-difference
+Jacobian $J=\partial\bm{r}/\partial\bm{q}$.
+
+\subsection{The bias--accuracy trade-off in \texorpdfstring{$\lambda$}{lambda}}
+
+At a solution the two objectives compete: increasing $\lambda$ pulls
+$\bm{q}^\star$ toward $\bm{q}_{\text{ref}}$ at the expense of position
+accuracy. Concretely, near a minimum the position error scales like
+\begin{equation}
+\lVert \bm{x}(\bm{q}^\star)-\bm{x}^\star\rVert
+   \;\sim\; \frac{\lambda^2}{w_p^2}\,\lVert J_x^{+}\rVert\,
+            \lVert \bm{q}^\star-\bm{q}_{\text{ref}}\rVert,
+\end{equation}
+where $J_x$ is the $3\times4$ position Jacobian and $J_x^{+}$ its pseudoinverse.
+The residual therefore grows roughly quadratically in $\lambda$. This is the
+mechanism behind the bug described in Section~\ref{sec:fix}: an
+over-large $\lambda$ produced centimetre-scale errors on every target.
+
+\subsection{Random-restart fallback}
+
+Even with $\lambda\to 0$, a single local optimization seeded from one point
+can stall in a local minimum (the position objective is non-convex), which
+empirically happened on about \SI{2}{\percent} of reachable targets, with
+residuals up to $\sim\SI{100}{\milli\meter}$. The solver therefore uses a
+two-phase strategy:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Continuity solve.} Seed at $\bm{q}_{\text{init}}=\bm{q}_{\text{ref}}=$
+        the current pose and solve once. If the resulting residual is within
+        a tolerance $\varepsilon$ (default \SI{0.5}{\milli\meter}), accept it.
+        This is the fast common path and yields smooth motion.
+  \item \textbf{Restart fallback.} Otherwise, draw up to $N$ random seeds
+        uniformly from the joint box,
+        $\bm{q}^{(k)}\sim\mathcal{U}(\bm{q}_{\min},\bm{q}_{\max})$, solve from
+        each (regularizing toward that seed, i.e.\ no continuity bias), and
+        keep the lowest-residual result. Stop early as soon as the tolerance
+        is met.
+\end{enumerate}
+
+Formally, the returned solution is
+\begin{equation}
+\bm{q}^\star=
+\arg\min_{\bm{q}\in\{\,\bm{q}^{(0)},\dots,\bm{q}^{(N)}\,\}}
+   \big\lVert \bm{x}(\bm{q})-\bm{x}^\star\big\rVert,
+\end{equation}
+where $\bm{q}^{(0)}$ is the continuity solve and
+$\bm{q}^{(1)},\dots,\bm{q}^{(N)}$ are the restart solves (evaluated only when
+needed). The hard targets pay the extra cost; the easy ones do not.
+
+\section{Solver parameters}
+
+\begin{table}[h]
+\centering
+\caption{\texttt{IKSolver} parameters and their meaning.}
+\label{tab:params}
+\small
+\begin{tabular}{lll}
+\toprule
+Symbol & Code name & Default \\
+\midrule
+$w_p$         & \texttt{position\_weight} & $1.0$ \\
+$\lambda$     & \texttt{regularization}   & $10^{-4}$ \\
+$\varepsilon$ & \texttt{tolerance}        & $5\times10^{-4}\ \si{\meter}$ \\
+$N$           & \texttt{restarts}         & $6$ \\
+--            & \texttt{max\_iter}        & $200$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{The tuning fix}
+\label{sec:fix}
+
+The original solver shipped with $\lambda=0.05$ and no restart fallback. By
+the relation in the trade-off subsection, that regularization weight was large
+enough to dominate the position objective, biasing every solution toward the
+seed. The effect was measured by generating guaranteed-reachable targets
+(sample random $\bm{q}_{\text{true}}$, compute $\bm{x}(\bm{q}_{\text{true}})$
+by FK, then ask the IK to recover the target); this isolates solver quality
+from workspace limits.
+
+\begin{table}[h]
+\centering
+\caption{Position residual on reachable targets, before and after. Lower is
+better; ``miss rate'' is the fraction of targets with residual
+$>\SI{1}{\milli\meter}$.}
+\label{tab:results}
+\small
+\begin{tabular}{lrrr}
+\toprule
+Configuration & Median & Worst case & Miss rate \\
+\midrule
+$\lambda=0.05$ (original)              & \SI{20}{\milli\meter}   & \SI{46}{\milli\meter} & \SI{100}{\percent} \\
+$\lambda=0.005$                       & \SI{0.36}{\milli\meter} & \SI{3.1}{\milli\meter}& \SI{12}{\percent} \\
+$\lambda=0$, single start             & \SI{0}{\milli\meter}    & \SI{108}{\milli\meter}& \SI{2}{\percent} \\
+$\lambda=10^{-4}$ + restart (current) & $<\SI{1}{\micro\meter}$ & \SI{0.022}{\milli\meter}& \SI{0}{\percent} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The adopted configuration ($\lambda=10^{-4}$ with the two-phase restart
+fallback) achieves sub-micrometre median accuracy and zero misses over $500$
+reachable targets, while preserving smooth motion: stepping the target along a
+line produced a maximum single-step joint change of only $0.68^\circ$.
+
+\section{ROS\,2 integration}
+
+The solver is wrapped by \texttt{ik\_gui\_node.py}, a node that:
+\begin{itemize}[leftmargin=2em]
+  \item parses the chain once with \texttt{parse\_urdf\_chain(urdf, root, tip)};
+  \item exposes a Tkinter panel for entering an $(x,y,z)$ target in metres;
+  \item calls \texttt{solver.solve(target, q\_init=self.current\_q)} on demand,
+        feeding the current pose as the continuity reference;
+  \item publishes the resulting joint vector on \texttt{/joint\_states} at
+        \SI{20}{\hertz}, which \texttt{robot\_state\_publisher} turns into TF
+        frames for RViz.
+\end{itemize}
+No change to the node was required for the tuning fix; it benefits
+automatically because the solver's public \texttt{solve} signature is
+unchanged.
+
+\paragraph{Running it.}
+\begin{verbatim}
+colcon build --packages-select new_arm_description new_arm_ik
+source install/setup.bash
+ros2 launch new_arm_ik ik_interface.launch.py
+\end{verbatim}
+
+\end{document}

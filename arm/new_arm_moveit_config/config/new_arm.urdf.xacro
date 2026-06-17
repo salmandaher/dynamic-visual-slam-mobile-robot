@@ -1,0 +1,76 @@
+<?xml version="1.0"?>
+<!--
+  MoveIt robot_description wrapper for the new_arm.
+
+  This file deliberately does NOT duplicate the geometry. It xacro:includes the
+  canonical URDF from new_arm_description (single source of truth) and only adds
+  the ros2_control block that MoveIt/ros2_control need for trajectory execution.
+  xacro merges the two <robot> elements into one at parse time.
+-->
+<robot name="new_arm" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- Pull in links, joints, materials, meshes from the description package. -->
+  <xacro:include filename="$(find new_arm_description)/urdf/new_arm.urdf"/>
+
+  <!-- true  -> mock_components/GenericSystem (no physical robot, RViz demo)
+       false -> swap in your real hardware plugin later. -->
+  <xacro:arg name="use_mock_hardware" default="true"/>
+
+  <ros2_control name="new_arm_system" type="system">
+    <hardware>
+      <xacro:if value="$(arg use_mock_hardware)">
+        <plugin>mock_components/GenericSystem</plugin>
+      </xacro:if>
+      <!-- Replace the block below with your real hardware interface when ready.
+      <xacro:unless value="$(arg use_mock_hardware)">
+        <plugin>my_hardware/MyRobotSystem</plugin>
+      </xacro:unless>
+      -->
+    </hardware>
+
+    <joint name="after_base_full_joint">
+      <command_interface name="position">
+        <param name="min">-3.14</param>
+        <param name="max">3.14</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="link1_joint">
+      <command_interface name="position">
+        <param name="min">-3.14</param>
+        <param name="max">3.14</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="link2_joint">
+      <command_interface name="position">
+        <param name="min">-3.14</param>
+        <param name="max">3.14</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+
+    <joint name="end_effector_joint">
+      <command_interface name="position">
+        <param name="min">-3.14</param>
+        <param name="max">3.14</param>
+      </command_interface>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+</robot>
