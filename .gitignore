@@ -1,0 +1,20 @@
+# --- Isaac Sim / ROS run logs (large, regenerated every run) ---
+*.log
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+
+# --- scratch / empty markers ---
+.probe_space.txt
+
+# --- Arm subproject ---------------------------------------------------------
+# These are uploaded SEPARATELY to the same GitHub repo (dynamic-visual-slam-
+# mobile-robot). Keep them out of the mobile-robot commit so the two uploads
+# don't collide.
+arm_with_all_links.usd
+robo_oral_with_arm.usd
+
+# --- Large binary USD package (11 MB, old, not part of the mobile-robot pipeline) ---
+*.usdz
