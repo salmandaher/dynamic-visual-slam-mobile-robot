@@ -1,0 +1,23 @@
+
+================ ROBOT BASE ================
+mass            : 4.5 kg
+dimensions LxWxH: 300.0 x 381.6 x 173.0 mm (0.3000 x 0.3816 x 0.1730 m)
+AABB z range    : 25.1 .. 198.1 mm
+geom. centre/COM: (176.3, 166.4, 111.6) mm (world)
+
+================ WHEELS ================
+right_back  (_9055): mass 0.13199999928474426 kg | dia 101.6 mm | width 26.4 mm | centre (72,-17,54) mm
+left_back   (_9055_01): mass 0.13199999928474426 kg | dia 101.6 mm | width 26.4 mm | centre (67,341,54) mm
+right_front (_6466): mass 0.20000000298023224 kg | dia 104.8 mm | width 30.7 mm | centre (309,-6,55) mm
+left_front  (_6466_01): mass 0.20000000298023224 kg | dia 104.8 mm | width 30.7 mm | centre (309,345,55) mm
+
+================ TRACK / WHEELBASE ================
+track  back  (R-L lateral): 357.4 mm  (centre-to-centre 357.4 mm)
+track  front (R-L lateral): 351.6 mm
+wheelbase (back->front)   : 237.3 mm
+
+================ PHYSX (articulation) ================
+body names : ['robot_base', '_9055_txm_4_inch_wheel', '_9055_txm_4_inch_wheel_01', '_6466_txm_4_inch_dual_omni_wheel', '_6466_txm_4_inch_dual_omni_wheel_01']
+body masses: [4.5, 0.132, 0.132, 0.2, 0.2] kg
+TOTAL robot mass: 5.164 kg
+body COMs  : [[-0.0012000000569969416, 0.0005000000237487257, 0.030899999663233757], [-0.0, -0.0, 0.005499999970197678], [-0.0, -0.0, 0.02930000051856041], [0.0, 0.0, 0.015300000086426735], [0.0, 0.0, 0.015300000086426735]]

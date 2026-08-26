@@ -150,6 +150,57 @@ parser.add_argument("--cpu-dynamics", action="store_true",
                          "broadphase because the SDF mesh wheel colliders are GPU-only in PhysX; without it "
                          "they don't collide and sink through the ground (front casters drag). Use this only "
                          "to reproduce the broken behavior.")
+parser.add_argument("--vslam-pipeline", action="store_true",
+                    help="publish the Isaac ROS (cuVSLAM + nvblox + Nav2) topic/frame layout expected by "
+                         "ev_robot_bringup: adds a stereo IR pair (/camera/infra1|infra2/image_rect_raw + "
+                         "camera_info), republishes depth as /camera/aligned_depth_to_color/image_raw, and "
+                         "publishes camera_link->{color,depth,infra1,infra2}_optical_frame TF. cuVSLAM owns "
+                         "map->odom->base_link; this sim provides the camera_link->optical frames + sensors.")
+parser.add_argument("--stereo-baseline", type=float, default=0.05,
+                    help="stereo IR baseline in metres for the cuVSLAM pair (default 0.05 = real D435i)")
+parser.add_argument("--add-features", action="store_true",
+                    help="author a feature-rich arena around the robot (textured floor + close walls + "
+                         "scattered colored objects within 0.3-2.5 m) so cuVSLAM has features to track and "
+                         "the depth camera sees surfaces. Needed because the rescale left the original "
+                         "obstacles 7-12 m away (out of the small robot's usable range). Authored at runtime.")
+parser.add_argument("--feature-texture", default="",
+                    help="optional path to a base-color texture PNG for the floor/walls (default: Isaac UV grid)")
+parser.add_argument("--scene-lights", action="store_true",
+                    help="add explicit strong lighting (dome + sun + overhead key) so the arena renders with "
+                         "crisp texture/contrast. Flat lighting -> uniform-gray camera image -> cuVSLAM finds "
+                         "no features. Recommended whenever --add-features is used.")
+parser.add_argument("--dynamic-object", action="store_true",
+                    help="author a MOVING 'walker' obstacle that orbits the robot and crosses the camera view, "
+                         "making this a true dynamic-VSLAM run (cuVSLAM rejects its features; nvblox dynamic "
+                         "mapping carves it out). Animated kinematically each frame — no physics interaction.")
+parser.add_argument("--dynamic-radius", type=float, default=1.2,
+                    help="orbit radius (m) of the dynamic walker around the robot start (default 1.2)")
+parser.add_argument("--dynamic-period", type=float, default=9.0,
+                    help="orbit period (s) of the dynamic walker (default 9.0)")
+parser.add_argument("--camera-z", type=float, default=0.0,
+                    help="raise the D435i camera by this many metres on world Z (use if the camera sits in/near "
+                         "the ground so depth/cuVSLAM see nothing). Applied at runtime before the optical "
+                         "frames + stereo pair are placed, so everything moves up together.")
+parser.add_argument("--camera-pitch", type=float, default=0.0,
+                    help="pitch the D435i camera DOWN by this many degrees so it looks at the lit textured "
+                         "floor/objects rather than empty space above (helps depth + cuVSLAM features).")
+parser.add_argument("--env-warehouse", action="store_true",
+                    help="reference Isaac's built-in Simple_Warehouse environment (textured walls + floor) "
+                         "around the robot and STRIP the shelving/racks/pallets/clutter (walls only). Better "
+                         "cuVSLAM features + nvblox maps than a synthetic arena. Downloads from the Isaac "
+                         "asset server on first load (cached after).")
+parser.add_argument("--env-url",
+                    default="https://omniverse-content-production.s3.us-west-2.amazonaws.com/Assets/Isaac/"
+                            "5.1/Isaac/Environments/Simple_Warehouse/warehouse.usd",
+                    help="environment USD to reference for --env-warehouse")
+parser.add_argument("--camera-exposure", type=float, default=0.0,
+                    help="exposure-value offset for the cameras (negative = darker). Use ~ -8 with the "
+                         "warehouse so its bright lights don't blow the image to white (which starves cuVSLAM "
+                         "of features). Also turns OFF RTX auto-exposure.")
+parser.add_argument("--env-scale", type=float, default=0.12,
+                    help="uniform scale for the warehouse env (default 0.12 ~ the robot's 0.1041 scale, so "
+                         "the 18x30 m warehouse becomes a robot-sized room with the textured walls CLOSE "
+                         "enough to fill the camera view -> strong cuVSLAM features). Use 1.0 for full size.")
 parser.add_argument("--reverse", action="store_true",
                     help="flip forward/back if the base drives the wrong way (negates linear v)")
 parser.add_argument("--flip-turn", action="store_true",
@@ -197,10 +248,16 @@ args, _ = parser.parse_known_args()
 _P = args.robot_prefix.rstrip("/")
 ART_ROOT = _P + "/robot_base"
 CAMERA_ROOT = _P + "/d435i_camera"
-COLOR_PRIM = CAMERA_ROOT + "/camera_link/color_camera"
-DEPTH_PRIM = CAMERA_ROOT + "/camera_link/depth_camera"
+CAMERA_LINK = CAMERA_ROOT + "/camera_link"
+COLOR_PRIM = CAMERA_LINK + "/color_camera"
+DEPTH_PRIM = CAMERA_LINK + "/depth_camera"
 DEPTH_OPT_PRIM = DEPTH_PRIM + "/camera_depth_optical_frame"
 COLOR_OPT_PRIM = COLOR_PRIM + "/camera_color_optical_frame"
+# stereo IR pair for cuVSLAM (--vslam-pipeline): created at runtime under camera_link
+INFRA1_PRIM = CAMERA_LINK + "/infra1_camera"
+INFRA2_PRIM = CAMERA_LINK + "/infra2_camera"
+INFRA1_OPT_PRIM = INFRA1_PRIM + "/camera_infra1_optical_frame"
+INFRA2_OPT_PRIM = INFRA2_PRIM + "/camera_infra2_optical_frame"
 BACK_JOINTS = [
     _P + "/_9055_txm_4_inch_wheel/node_/mesh_/right_back",
     _P + "/_9055_txm_4_inch_wheel_01/node_/mesh_/left_back",
@@ -245,6 +302,329 @@ def author_optical_frames(stage):
         xf.ClearXformOpOrder()
         xf.AddOrientOp().Set(q180x)
     log("optical frames authored (camera_depth/color_optical_frame, 180deg about X)")
+
+
+UV_GRID_TEX = ("/DataDrive/isaac-sim/extscache/omni.kit.stage_templates-2.0.0+69cbf6ad/"
+               "data/ov_uv_grids_basecolor_1024.png")
+
+
+def _textured_material(stage, path, tex_path, fallback_rgb, tile=6.0):
+    """An OmniPBR MDL material (Isaac's RTX renderer needs MDL, not UsdPreviewSurface,
+    for textures to actually show). Uses the UV-grid base-color texture (tiled) if it
+    exists, else a flat colour."""
+    from pxr import UsdShade, Sdf, Gf
+    import os as _os
+    mat = UsdShade.Material.Define(stage, path)
+    sh = UsdShade.Shader.Define(stage, path + "/Shader")
+    sh.SetSourceAsset(Sdf.AssetPath("OmniPBR.mdl"), "mdl")
+    sh.SetSourceAssetSubIdentifier("OmniPBR", "mdl")
+    sh.CreateInput("reflection_roughness_constant", Sdf.ValueTypeNames.Float).Set(0.6)
+    if tex_path and _os.path.isfile(tex_path):
+        sh.CreateInput("diffuse_texture", Sdf.ValueTypeNames.Asset).Set(Sdf.AssetPath(tex_path))
+        # world-space (triplanar) projection so the texture maps onto the procedural
+        # Cube/Cylinder primitives, which have NO UV coords -> without this it renders flat
+        sh.CreateInput("project_uvw", Sdf.ValueTypeNames.Bool).Set(True)
+        sh.CreateInput("world_or_object", Sdf.ValueTypeNames.Bool).Set(True)
+        sh.CreateInput("texture_scale", Sdf.ValueTypeNames.Float2).Set(Gf.Vec2f(tile, tile))
+    else:
+        sh.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f).Set(Gf.Vec3f(*fallback_rgb))
+    mat.CreateSurfaceOutput("mdl").ConnectToSource(sh.ConnectableAPI(), "out")
+    return mat
+
+
+WAREHOUSE_STRIP = ("SM_RackShelf", "SM_RackFrame", "SM_Rackshield", "SM_BracketBeam",
+                   "SM_BracketSlot", "SM_PaletteA", "SM_PushcartA", "SM_CardBoxA",
+                   "KLT_Bins", "SM_SignCVer", "S_AisleSign", "S_Barcode")
+
+
+def add_warehouse(stage, url, scale=0.12):
+    """Reference Isaac's Simple_Warehouse env around the robot and deactivate the
+    shelving/racks/pallets/clutter so only the building (walls, floor, ceiling,
+    pillars, lights) remains. Scaled down to the robot so the textured walls are CLOSE
+    (strong cuVSLAM features). Authored at runtime (never saved). Returns once loaded."""
+    from pxr import UsdGeom, Gf
+    wh = stage.DefinePrim("/World/Warehouse", "Xform")
+    wh.GetReferences().AddReference(url)
+    UsdGeom.XformCommonAPI(wh).SetScale(Gf.Vec3f(scale, scale, scale))
+    log(f"warehouse referenced ({url.split('/')[-1]}) scale {scale}; downloading/loading ...")
+    for _ in range(4000):
+        simulation_app.update()
+        if not is_stage_loading():
+            break
+    n = 0
+    for child in stage.GetPrimAtPath("/World/Warehouse").GetChildren():
+        if any(child.GetName().startswith(p) for p in WAREHOUSE_STRIP):
+            child.SetActive(False)
+            n += 1
+    # make the robot scene's OWN ground plane INVISIBLE (keep its collider — the
+    # warehouse floor mesh has none, so the robot still needs it to stand on) and
+    # deactivate its obstacles, so the camera sees the textured warehouse floor.
+    from pxr import Sdf, UsdGeom
+    scene_root = Sdf.Path(_P).GetParentPath()   # e.g. /World/new_built_robot_ros
+    gp = stage.GetPrimAtPath(scene_root.AppendChild("GroundPlane"))
+    if gp and gp.IsValid():
+        UsdGeom.Imageable(gp).MakeInvisible()
+    ob = stage.GetPrimAtPath(scene_root.AppendChild("Obstacles"))
+    if ob and ob.IsValid():
+        ob.SetActive(False)
+    log(f"warehouse loaded; stripped {n} shelf/clutter prims; robot GroundPlane hidden, obstacles off")
+
+
+def raise_camera(stage, dz, pitch_deg=0.0):
+    """Move the D435i camera up by `dz` world-metres and pitch it DOWN by `pitch_deg`
+    (so it looks at the lit, textured floor + objects instead of empty space above).
+    Computed from world transforms so the robot's scale is handled; sets a single
+    transform op on the d435i_camera prim. MUST run before author_optical_frames /
+    author_stereo so those pick up the new pose. Runtime only — never saved."""
+    from pxr import UsdGeom, Gf
+    cache = UsdGeom.XformCache()
+    cam = stage.GetPrimAtPath(CAMERA_ROOT)
+    Mw = cache.GetLocalToWorldTransform(cam)
+    Mp = cache.GetLocalToWorldTransform(cam.GetParent())
+    t = Mw.ExtractTranslation()
+    rot = Gf.Transform(Mw).GetRotation()
+    if abs(pitch_deg) > 1e-6:
+        # pitch about the camera's local +X (right) axis; the USD camera looks down -Z,
+        # so a negative rotation about +X tilts the optical axis toward the ground.
+        right = Mw.TransformDir(Gf.Vec3d(1, 0, 0)).GetNormalized()
+        rot = Gf.Rotation(right, -pitch_deg) * rot
+    new_world = Gf.Matrix4d(1.0)
+    new_world.SetRotateOnly(rot)
+    new_world.SetTranslateOnly(Gf.Vec3d(t[0], t[1], t[2] + dz))
+    local = new_world * Mp.GetInverse()
+    xf = UsdGeom.Xformable(cam)
+    xf.ClearXformOpOrder()
+    xf.AddTransformOp().Set(local)
+    log(f"camera: raised +{dz:.3f} m (z {t[2]:.3f}->{t[2]+dz:.3f}), pitched down {pitch_deg:.0f} deg")
+
+
+def set_camera_exposure(stage, ev):
+    """Darken/brighten the cameras (and disable RTX auto-exposure) so a brightly-lit
+    env like the warehouse isn't blown to uniform white — which leaves cuVSLAM with no
+    features. `ev` is an exposure-value offset (negative = darker)."""
+    try:
+        import carb
+        s = carb.settings.get_settings()
+        s.set("/rtx/post/histogram/enabled", False)        # turn OFF auto-exposure
+        s.set_float("/rtx/post/tonemap/filmIso", max(20.0, 100.0 * (2.0 ** ev)))
+    except Exception as e:  # noqa: BLE001
+        log(f"WARNING: render exposure setting failed ({e!r})")
+    from pxr import Sdf
+    for p in (COLOR_PRIM, DEPTH_PRIM, INFRA1_PRIM, INFRA2_PRIM):
+        prim = stage.GetPrimAtPath(p)
+        if prim and prim.IsValid():
+            a = prim.GetAttribute("exposure") or prim.CreateAttribute("exposure", Sdf.ValueTypeNames.Float)
+            a.Set(float(ev))
+    log(f"camera exposure set to EV {ev:+.1f} (auto-exposure off)")
+
+
+def set_camera_clip(stage, near_m=0.03, far_m=80.0):
+    """Set a generous, scale-aware clip range (world metres) on all cameras so the depth
+    camera doesn't cut off the textured room. The D435i is real-size in a scaled world,
+    so local clip values = world metres / the camera's world scale."""
+    from pxr import UsdGeom, Gf, Sdf
+    cache = UsdGeom.XformCache()
+    for p in (COLOR_PRIM, DEPTH_PRIM, INFRA1_PRIM, INFRA2_PRIM):
+        prim = stage.GetPrimAtPath(p)
+        if not prim or not prim.IsValid():
+            continue
+        s = cache.GetLocalToWorldTransform(prim).TransformDir(Gf.Vec3d(1, 0, 0)).GetLength() or 1.0
+        a = prim.GetAttribute("clippingRange") or prim.CreateAttribute("clippingRange", Sdf.ValueTypeNames.Float2)
+        a.Set(Gf.Vec2f(near_m / s, far_m / s))
+    log(f"camera clip set {near_m}-{far_m} m (scale-aware) on color/depth/infra")
+
+
+def add_feature_environment(stage, tex_path, center=(0.0, 0.0, 0.0)):
+    """Build a textured arena AROUND `center` (the robot's world position) so the
+    robot's cameras see surfaces/features: a textured floor, four close textured walls
+    (~2.5 m box), and a deterministic spread of ~40 bright colored boxes/cylinders at
+    0.3-2.3 m and heights 0.03-0.6 m. Gives cuVSLAM corner features at varied depth and
+    the depth camera real returns -> good nvblox maps. Authored under /World/Features."""
+    from pxr import UsdGeom, UsdShade, Sdf, Gf
+    cx, cy, cz = center
+    root = "/World/Features"
+    UsdGeom.Xform.Define(stage, root)
+    floor_mat = _textured_material(stage, root + "/M_floor", tex_path, (0.5, 0.5, 0.5))
+    wall_mat = _textured_material(stage, root + "/M_wall", tex_path, (0.8, 0.8, 0.85))
+
+    def bind(prim, mat):
+        UsdShade.MaterialBindingAPI(prim).Bind(mat)
+
+    def place(prim, t, s=None):
+        # XformCommonAPI manages translate/scale ops safely (no op-order conflicts)
+        api = UsdGeom.XformCommonAPI(prim)
+        api.SetTranslate(Gf.Vec3d(*t))
+        if s is not None:
+            api.SetScale(Gf.Vec3f(*s))
+
+    # textured floor (4 m square) just above the ground at the robot, so it sees texture
+    floor = UsdGeom.Cube.Define(stage, root + "/floor")
+    floor.GetSizeAttr().Set(1.0)
+    place(floor.GetPrim(), (cx, cy, cz + 0.002), (4.0, 4.0, 0.002))
+    bind(floor.GetPrim(), floor_mat)
+
+    # four walls forming a ~2.0 m room around the robot, 1.2 m tall (open top -> lit)
+    R, H = 2.0, 1.2
+    for name, (x, y, sx, sy) in {
+        "wall_n": (R, 0, 0.04, R), "wall_s": (-R, 0, 0.04, R),
+        "wall_e": (0, R, R, 0.04), "wall_w": (0, -R, R, 0.04),
+    }.items():
+        w = UsdGeom.Cube.Define(stage, root + "/" + name)
+        w.GetSizeAttr().Set(1.0)
+        place(w.GetPrim(), (cx + x, cy + y, cz + H / 2), (sx, sy, H / 2))
+        bind(w.GetPrim(), wall_mat)
+
+    # deterministic colorful clutter: rings of boxes/cylinders, taller + denser so they
+    # fill the camera view at varied depth (good cuVSLAM features + nvblox geometry)
+    palette = [(0.9, 0.1, 0.1), (0.1, 0.8, 0.2), (0.15, 0.3, 0.95), (0.95, 0.8, 0.1),
+               (0.9, 0.2, 0.8), (0.1, 0.85, 0.85), (0.95, 0.5, 0.1), (0.6, 0.2, 0.9)]
+    n = 0
+    for ring, (rad, count, hz) in enumerate([(0.5, 8, 0.18), (0.9, 12, 0.35),
+                                             (1.3, 14, 0.55), (1.7, 12, 0.8)]):
+        for i in range(count):
+            ang = 2.0 * math.pi * i / count + ring * 0.4
+            x, y = cx + rad * math.cos(ang), cy + rad * math.sin(ang)
+            col = palette[n % len(palette)]
+            sz = 0.05 + 0.03 * (n % 4)
+            if n % 3 == 0:
+                g = UsdGeom.Cylinder.Define(stage, f"{root}/obj_{n}")
+                g.GetRadiusAttr().Set(sz); g.GetHeightAttr().Set(hz * 2)
+                g.GetAxisAttr().Set("Z")
+                place(g.GetPrim(), (x, y, cz + hz + 0.02))
+            else:
+                g = UsdGeom.Cube.Define(stage, f"{root}/obj_{n}")
+                g.GetSizeAttr().Set(1.0)
+                place(g.GetPrim(), (x, y, cz + hz + 0.02), (sz, sz, hz))
+            bind(g.GetPrim(), _textured_material(stage, f"{root}/Mc_{n}", "", col))
+            n += 1
+    log(f"feature arena authored: textured floor + 4 walls (R={R} m) + {n} colored objects "
+        f"({'UV-grid texture' if (tex_path and __import__('os').path.isfile(tex_path)) else 'flat colors'})")
+
+
+def add_scene_lights(stage, center=(0.0, 0.0, 0.0)):
+    """Add explicit, strong, even lighting so the feature arena renders with crisp,
+    high-contrast texture (uniform/flat lighting -> uniform-gray camera image -> cuVSLAM
+    finds no features). A bright DomeLight for ambient fill + an angled DistantLight (sun)
+    for directional shading/shadows that create the intensity gradients cuVSLAM tracks."""
+    from pxr import UsdLux, UsdGeom, Gf, Sdf
+    cx, cy, cz = center
+    root = "/World/SceneLights"
+    UsdGeom.Xform.Define(stage, root)
+    dome = UsdLux.DomeLight.Define(stage, root + "/Dome")
+    dome.CreateIntensityAttr(900.0)
+    dome.CreateColorAttr(Gf.Vec3f(1.0, 1.0, 0.98))
+    sun = UsdLux.DistantLight.Define(stage, root + "/Sun")
+    sun.CreateIntensityAttr(2400.0)
+    sun.CreateAngleAttr(1.0)
+    sun.CreateColorAttr(Gf.Vec3f(1.0, 0.97, 0.92))
+    UsdGeom.XformCommonAPI(sun.GetPrim()).SetRotate(Gf.Vec3f(-45.0, 25.0, 0.0))
+    # a close overhead key light so the arena floor/objects get a bright hotspot gradient
+    key = UsdLux.SphereLight.Define(stage, root + "/Key")
+    key.CreateIntensityAttr(40000.0)
+    key.CreateRadiusAttr(0.15)
+    UsdGeom.XformCommonAPI(key.GetPrim()).SetTranslate(Gf.Vec3d(cx, cy, cz + 2.2))
+    log("scene lights authored: DomeLight(900) + DistantLight sun(2400) + overhead SphereLight")
+
+
+def add_dynamic_object(stage, center=(0.0, 0.0, 0.0), radius=1.2, period=9.0):
+    """Author a MOVING obstacle (a tall, bright textured 'walker') that orbits the robot
+    so it repeatedly crosses the camera's field of view. This is what makes the run a
+    *dynamic* VSLAM experiment: cuVSLAM must reject the features that land on this body,
+    and nvblox (dynamic mapping) must carve it out of the static map instead of smearing
+    it. Returns a closure update(t) that moves the prim each frame (purely kinematic — no
+    physics, so it can't disturb the robot; it just provides moving image content)."""
+    from pxr import UsdGeom, UsdShade, Sdf, Gf
+    cx, cy, cz = center
+    root = "/World/DynamicObstacle"
+    xf = UsdGeom.Xform.Define(stage, root)
+    # a person-proxy: a tall box ~0.30 x 0.30 x 0.9 m, bright red so it's unmistakable
+    body = UsdGeom.Cube.Define(stage, root + "/body")
+    body.GetSizeAttr().Set(1.0)
+    UsdGeom.XformCommonAPI(body.GetPrim()).SetScale(Gf.Vec3f(0.15, 0.15, 0.45))
+    UsdGeom.XformCommonAPI(body.GetPrim()).SetTranslate(Gf.Vec3d(0, 0, 0.45))
+    mat = _textured_material(stage, root + "/M_walker", "", (0.95, 0.12, 0.12))
+    UsdShade.MaterialBindingAPI(body.GetPrim()).Bind(mat)
+    # a contrasting head so it has internal features/edges too
+    head = UsdGeom.Sphere.Define(stage, root + "/head")
+    head.GetRadiusAttr().Set(0.12)
+    UsdGeom.XformCommonAPI(head.GetPrim()).SetTranslate(Gf.Vec3d(0, 0, 1.05))
+    UsdShade.MaterialBindingAPI(head.GetPrim()).Bind(
+        _textured_material(stage, root + "/M_head", "", (0.1, 0.2, 0.9)))
+    api = UsdGeom.XformCommonAPI(xf.GetPrim())
+
+    def update(t):
+        ang = 2.0 * math.pi * (t / period)
+        x = cx + radius * math.cos(ang)
+        y = cy + radius * math.sin(ang)
+        api.SetTranslate(Gf.Vec3d(x, y, cz))
+        # face along travel direction (purely cosmetic)
+        api.SetRotate(Gf.Vec3f(0.0, 0.0, math.degrees(ang) + 90.0))
+
+    log(f"dynamic obstacle authored: orbiting 'walker' r={radius} m, period={period}s "
+        f"(moving content for cuVSLAM rejection / nvblox dynamic masking)")
+    return update
+
+
+def author_stereo_cameras(stage, baseline):
+    """Create a stereo IR pair (infra1=left, infra2=right) for cuVSLAM, as child
+    Camera prims of camera_link separated by `baseline` metres along the depth
+    camera's world right-axis, copying the colour camera's intrinsics. Placement is
+    computed from WORLD transforms (UsdGeom.XformCache) so the nested 0.1041 robot
+    scale and 0.001 camera scale are handled exactly. Also authors their ROS optical
+    frames (180deg about X). Returns the camera_link pose relative to base (robot_base)
+    so the caller can report the base_link->camera_link offset for visual_slam.launch."""
+    from pxr import UsdGeom, Gf, Sdf
+    cache = UsdGeom.XformCache()
+    depth = stage.GetPrimAtPath(DEPTH_PRIM)
+    color = stage.GetPrimAtPath(COLOR_PRIM)
+    link = stage.GetPrimAtPath(CAMERA_LINK)
+    Md = cache.GetLocalToWorldTransform(depth)
+    Mlink = cache.GetLocalToWorldTransform(link)
+    Mlink_inv = Mlink.GetInverse()
+    right = Md.TransformDir(Gf.Vec3d(1.0, 0.0, 0.0)).GetNormalized()  # camera local +X = right
+    pos = Md.ExtractTranslation()
+    # copy intrinsics from the colour camera (ideal pinhole -> rectified)
+    def cattr(p, n, d):
+        a = p.GetAttribute(n)
+        return a.Get() if a and a.Get() is not None else d
+    focal = float(cattr(color, "focalLength", 24.0))
+    h_ap = float(cattr(color, "horizontalAperture", 20.955))
+    v_ap = float(cattr(color, "verticalAperture", 11.79))
+    clip = cattr(color, "clippingRange", Gf.Vec2f(0.01, 100000.0))
+    for prim_path, opt_path, sign in ((INFRA1_PRIM, INFRA1_OPT_PRIM, -0.5),
+                                      (INFRA2_PRIM, INFRA2_OPT_PRIM, +0.5)):
+        world_pos = pos + right * (sign * baseline)
+        # RIGID world transform (depth camera's orientation, world position, NO scale):
+        # a non-unit camera xform scale distorts the rendered FOV vs the reported
+        # camera_info, which gives cuVSLAM a wrong stereo scale (~14x off). Unit scale
+        # makes the render match camera_info so triangulation is metric.
+        Mw = Gf.Matrix4d(1.0)
+        Mw.SetRotateOnly(Gf.Transform(Md).GetRotation())
+        Mw.SetTranslateOnly(world_pos)
+        local = Mw * Mlink_inv              # localToParent = desiredWorld * parentWorld^-1
+        cam = UsdGeom.Camera.Define(stage, prim_path)
+        cam.ClearXformOpOrder()
+        cam.AddTransformOp().Set(local)
+        cp = cam.GetPrim()
+        cp.CreateAttribute("focalLength", Sdf.ValueTypeNames.Float).Set(focal)
+        cp.CreateAttribute("horizontalAperture", Sdf.ValueTypeNames.Float).Set(h_ap)
+        cp.CreateAttribute("verticalAperture", Sdf.ValueTypeNames.Float).Set(v_ap)
+        cp.CreateAttribute("clippingRange", Sdf.ValueTypeNames.Float2).Set(clip)
+        xf = UsdGeom.Xform.Define(stage, opt_path)   # ROS optical frame (180deg about X)
+        xf.ClearXformOpOrder()
+        xf.AddOrientOp().Set(Gf.Quatf(0.0, 1.0, 0.0, 0.0))
+    # report base_link->camera_link offset in METRES (world delta rotated into the
+    # base frame; using world translations avoids the robot's 0.1041 scale inflating
+    # the result the way Mlink * Mbase^-1 would).
+    Mbase = cache.GetLocalToWorldTransform(stage.GetPrimAtPath(ART_ROOT))
+    d_world = Mlink.ExtractTranslation() - Mbase.ExtractTranslation()
+    Rbase = Gf.Transform(Mbase).GetRotation()
+    t = Rbase.GetInverse().TransformDir(d_world)   # camera_link offset in base axes (m)
+    log(f"stereo IR pair authored: baseline {baseline:.3f} m (infra1 left, infra2 right), "
+        f"intrinsics focal {focal:.2f}/h_ap {h_ap:.2f}")
+    log(f"camera_link offset vs base ~ cam_x:={t[0]:.4f} cam_y:={t[1]:.4f} cam_z:={t[2]:.4f} m "
+        f"(pass to visual_slam.launch base_link->camera_link static)")
+    return t
 
 
 def apply_motor_model(stage, gear):
@@ -447,6 +827,17 @@ def build_graph():
     keys = og.Controller.Keys
     cam_ns = args.camera_namespace
     rob_ns = args.robot_namespace
+    pipe = args.vslam_pipeline
+    # nvblox expects depth on /camera/aligned_depth_to_color/* in --vslam-pipeline mode.
+    depth_topic = "aligned_depth_to_color/image_raw" if pipe else args.depth_topic
+    depth_info_topic = "aligned_depth_to_color/camera_info" if pipe else args.depth_info_topic
+    # TF: pipeline mode publishes camera_link -> the camera optical frames (cuVSLAM owns
+    # map->odom->base_link; the launch's static owns base_link->camera_link). Default
+    # mode publishes the articulation tree + the 2 optical frames as before.
+    if pipe:
+        tf_target = [COLOR_OPT_PRIM, DEPTH_OPT_PRIM, INFRA1_OPT_PRIM, INFRA2_OPT_PRIM]
+    else:
+        tf_target = [ART_ROOT, DEPTH_OPT_PRIM, COLOR_OPT_PRIM]
 
     create_nodes = [
         ("OnTick", "omni.graph.action.OnPlaybackTick"),
@@ -483,10 +874,10 @@ def build_graph():
         ("ColorInfo.inputs:nodeNamespace", cam_ns),
         # depth camera (type="depth" -> 32FC1 metres)
         ("DepthImg.inputs:type", "depth"),
-        ("DepthImg.inputs:topicName", args.depth_topic),
+        ("DepthImg.inputs:topicName", depth_topic),
         ("DepthImg.inputs:frameId", args.depth_frame),
         ("DepthImg.inputs:nodeNamespace", cam_ns),
-        ("DepthInfo.inputs:topicName", args.depth_info_topic),
+        ("DepthInfo.inputs:topicName", depth_info_topic),
         ("DepthInfo.inputs:frameId", args.depth_frame),
         ("DepthInfo.inputs:nodeNamespace", cam_ns),
         # clock
@@ -501,7 +892,7 @@ def build_graph():
         # (frame camera_*_optical_frame) resolve under world in RViz. These are
         # republished every tick, so they track the robot as it drives.
         ("TF.inputs:topicName", "tf"),
-        ("TF.inputs:targetPrims", [ART_ROOT, DEPTH_OPT_PRIM, COLOR_OPT_PRIM]),
+        ("TF.inputs:targetPrims", tf_target),
         ("TF.inputs:nodeNamespace", rob_ns),
         # odometry: compute from the chassis, publish body-frame twist as-is
         ("ComputeOdom.inputs:chassisPrim", [ART_ROOT]),
@@ -563,6 +954,41 @@ def build_graph():
             ("RpDepth.outputs:renderProductPath", "DepthPcl.inputs:renderProductPath"),
         ]
 
+    # cuVSLAM stereo IR pair: two extra render products + rgb image/info helpers,
+    # published as /camera/infra1|infra2/image_rect_raw (+camera_info). cuVSLAM accepts
+    # rgb8 and greyscales internally; the baseline comes from the optical frames in TF.
+    if pipe:
+        # TF transforms are emitted relative to camera_link (parentPrim).
+        set_values.append(("TF.inputs:parentPrim", [CAMERA_LINK]))
+        for tag, prim, frame, topic in (
+                ("Infra1", INFRA1_PRIM, "camera_infra1_optical_frame", "infra1"),
+                ("Infra2", INFRA2_PRIM, "camera_infra2_optical_frame", "infra2")):
+            rp = "Rp" + tag
+            create_nodes += [
+                (rp, "isaacsim.core.nodes.IsaacCreateRenderProduct"),
+                (tag + "Img", "isaacsim.ros2.bridge.ROS2CameraHelper"),
+                (tag + "Info", "isaacsim.ros2.bridge.ROS2CameraInfoHelper"),
+            ]
+            set_values += [
+                (rp + ".inputs:cameraPrim", [prim]),
+                (rp + ".inputs:width", args.color_width),
+                (rp + ".inputs:height", args.color_height),
+                (tag + "Img.inputs:type", "rgb"),
+                (tag + "Img.inputs:topicName", topic + "/image_rect_raw"),
+                (tag + "Img.inputs:frameId", frame),
+                (tag + "Img.inputs:nodeNamespace", cam_ns),
+                (tag + "Info.inputs:topicName", topic + "/camera_info"),
+                (tag + "Info.inputs:frameId", frame),
+                (tag + "Info.inputs:nodeNamespace", cam_ns),
+            ]
+            connect += [
+                ("OnTick.outputs:tick", rp + ".inputs:execIn"),
+                (rp + ".outputs:execOut", tag + "Img.inputs:execIn"),
+                (rp + ".outputs:execOut", tag + "Info.inputs:execIn"),
+                (rp + ".outputs:renderProductPath", tag + "Img.inputs:renderProductPath"),
+                (rp + ".outputs:renderProductPath", tag + "Info.inputs:renderProductPath"),
+            ]
+
     og.Controller.edit(
         {"graph_path": GRAPH_PATH, "evaluator_name": "execution"},
         {keys.CREATE_NODES: create_nodes, keys.SET_VALUES: set_values, keys.CONNECT: connect},
@@ -589,8 +1015,23 @@ def main():
             carb.log_error(f"[drive] prim missing: {p}")
             log(f"WARNING: {p} not found — related output will be empty")
 
+    # Built-in warehouse environment around the robot (walls only), if requested.
+    if args.env_warehouse:
+        add_warehouse(stage, args.env_url, args.env_scale)
+
+    # Raise the camera if requested (before the optical frames/stereo pair are placed,
+    # so they inherit the lifted pose) — fixes a camera sitting in/near the ground.
+    if abs(args.camera_z) > 1e-6 or abs(args.camera_pitch) > 1e-6:
+        raise_camera(stage, args.camera_z, args.camera_pitch)
+
     # Optical TF frames so the depth image + point cloud are placeable in RViz.
     author_optical_frames(stage)
+
+    # cuVSLAM stereo IR pair (+ their optical frames) for the Isaac ROS pipeline.
+    if args.vslam_pipeline:
+        author_stereo_cameras(stage, args.stereo_baseline)
+    if abs(args.camera_exposure) > 1e-6:
+        set_camera_exposure(stage, args.camera_exposure)
 
     # TorqueNADO DC-gearmotor behaviour on the driven wheels (real torque/speed
     # limits), unless --ideal-drive asks for the old stiff velocity servo.
@@ -641,6 +1082,23 @@ def main():
     log("building OmniGraph ...")
     build_graph()
     log("OmniGraph built (clock, color+depth+info, joint_states, tf, odom, cmd_vel)")
+
+    # Feature-rich textured arena (authored AFTER the graph so its async texture loads
+    # don't interfere with OmniGraph creation). The rescaled robot's real-size cameras
+    # otherwise see nothing — the original obstacles are 7-12 m away, out of range.
+    dyn_update = None
+    if args.add_features or args.scene_lights or args.dynamic_object:
+        from pxr import UsdGeom as _UG
+        bw = _UG.XformCache().GetLocalToWorldTransform(
+            stage.GetPrimAtPath(ART_ROOT)).ExtractTranslation()
+        bwc = (bw[0], bw[1], bw[2])
+        if args.add_features:
+            log(f"feature arena centered on robot world pos ({bw[0]:.2f}, {bw[1]:.2f}, {bw[2]:.2f})")
+            add_feature_environment(stage, args.feature_texture or UV_GRID_TEX, bwc)
+        if args.scene_lights:
+            add_scene_lights(stage, bwc)
+        if args.dynamic_object:
+            dyn_update = add_dynamic_object(stage, bwc, args.dynamic_radius, args.dynamic_period)
 
     # 5) Wrap the articulation, then play -> update -> initialize (handles need a
     #    running sim). Re-initialize after any Stop+Play.
@@ -727,6 +1185,8 @@ def main():
                 art.set_joint_velocity_targets(current.reshape(1, -1), joint_indices=wheel_idx)
             except Exception as e:  # noqa: BLE001
                 carb.log_warn(f"[drive] set velocity failed: {e!r}")
+        if dyn_update is not None:
+            dyn_update(t)          # advance the moving 'walker' obstacle this frame
         if keyboard is not None:
             keyboard.update_ui()   # keep the status window live every frame
         sim.step(render=True)
