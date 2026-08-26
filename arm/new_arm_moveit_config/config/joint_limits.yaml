@@ -1,0 +1,25 @@
+# Velocity/acceleration limits used by MoveIt for time-parameterizing
+# trajectories. Position limits come from the URDF; velocity matches the URDF
+# (1.0 rad/s). Acceleration is not in the URDF, so reasonable values are set
+# here. Tune these to taste; they only affect how fast planned motions are.
+joint_limits:
+  after_base_full_joint:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  link1_joint:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  link2_joint:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0
+  end_effector_joint:
+    has_velocity_limits: true
+    max_velocity: 1.0
+    has_acceleration_limits: true
+    max_acceleration: 2.0

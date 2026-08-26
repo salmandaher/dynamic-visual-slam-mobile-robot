@@ -1,0 +1,91 @@
+:root {
+  --bg: #14171c;
+  --panel: #1d2229;
+  --ink: #e6e9ee;
+  --muted: #8b95a3;
+  --accent: #4d8dff;
+  --danger: #ff5d5d;
+  --ok: #3ecf8e;
+  --line: #2c333d;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 14px/1.45 system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--line);
+}
+header h1 { font-size: 18px; margin: 0; letter-spacing: 0.5px; }
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--line);
+}
+.badge.on { background: rgba(62, 207, 142, 0.2); color: var(--ok); }
+.badge.off { background: rgba(255, 93, 93, 0.18); color: var(--danger); }
+main {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(320px, 1fr));
+  gap: 14px;
+  padding: 14px;
+}
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+.panel.viz, .panel.log { grid-column: span 1; }
+h2 { font-size: 14px; margin: 0 0 10px; }
+h2 small { color: var(--muted); font-weight: normal; }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+input[type="number"] {
+  width: 84px;
+  background: #11151b;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+input[type="range"] { width: 180px; }
+button {
+  background: var(--line);
+  color: var(--ink);
+  border: 1px solid #3a434f;
+  border-radius: 7px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.named span { color: var(--muted); }
+.jog-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.jog-row .name { width: 150px; color: var(--muted); }
+.jog-row .val { width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.canvases { display: flex; gap: 12px; flex-wrap: wrap; }
+figure { margin: 0; }
+figcaption { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+canvas { background: #0e1116; border: 1px solid var(--line); border-radius: 8px; }
+.readout { margin-top: 10px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.readout div { display: flex; justify-content: space-between; max-width: 320px; }
+.log #log, #log {
+  height: 160px;
+  overflow-y: auto;
+  background: #0e1116;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  font: 12px/1.5 ui-monospace, monospace;
+  color: var(--muted);
+}
+.log .line { white-space: pre-wrap; }

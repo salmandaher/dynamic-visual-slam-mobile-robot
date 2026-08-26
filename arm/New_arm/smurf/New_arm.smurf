@@ -1,0 +1,13 @@
+{
+  "additional_files": {},
+  "description": "",
+  "files": [
+    "..\\urdf\\New_arm.urdf",
+    "New_arm_collisions.yml",
+    "New_arm_joints.yml",
+    "New_arm_links.yml",
+    "New_arm_visuals.yml"
+  ],
+  "modelname": "New_arm",
+  "version": "0.0.0"
+}

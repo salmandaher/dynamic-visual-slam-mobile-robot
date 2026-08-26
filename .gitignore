@@ -1,20 +1,46 @@
-# --- Isaac Sim / ROS run logs (large, regenerated every run) ---
-*.log
+# =============================================================================
+#  Combined ignore rules: mobile-robot base + arm subsystem
+# =============================================================================
 
-# --- Python ---
+# ---- Python / ROS 2 (ament/colcon) build artifacts ----
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+install/
+log/
 
-# --- scratch / empty markers ---
+# ---- Node (web UI) ----
+node_modules/
+npm-debug.log*
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# ---- Isaac Sim / ROS run logs (large, regenerated every run) ----
+*.log
+logs/
+checkpoints/
+
+# ---- scratch / empty markers ----
 .probe_space.txt
 
-# --- Arm subproject ---------------------------------------------------------
-# These are uploaded SEPARATELY to the same GitHub repo (dynamic-visual-slam-
-# mobile-robot). Keep them out of the mobile-robot commit so the two uploads
-# don't collide.
+# ---- Arm subsystem: large sim artifacts live on the DataDrive -----------------
+# Regenerate via arm/new_arm_isaac scripts (see arm/RUNBOOK.md). Scoped to arm/
+# ONLY -- the mobile-robot base deliberately COMMITS its USD scenes at the repo
+# root (lizard.usd, new_built_robot.usd, ...), so these must not be global.
+arm/**/*.usd
+arm/**/*.usdc
+arm/**/*.usda
+
+# ---- Mobile-robot base: superseded / oversized assets ----
+# Composed arm+base scenes now live under arm/; keep the old root copies out.
 arm_with_all_links.usd
 robo_oral_with_arm.usd
 
-# --- Large binary USD package (11 MB, old, not part of the mobile-robot pipeline) ---
+# Large binary USD package (11 MB, old, not part of the mobile-robot pipeline)
 *.usdz

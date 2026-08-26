@@ -1,0 +1,102 @@
+{
+  "links": [
+    {
+      "model": {
+        "name": "New_arm"
+      },
+      "name": "arm_base_link",
+      "originRoot": {
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visuals": [
+        "arm base"
+      ]
+    },
+    {
+      "name": "after_base_full_link",
+      "originRoot": {
+        "position": [
+          0.4323912520641835,
+          -1.8406250381842277,
+          83.96122479207664
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visuals": [
+        "after base full"
+      ]
+    },
+    {
+      "name": "link1_link",
+      "originRoot": {
+        "position": [
+          8.57462934104379,
+          -2.2730142040857197,
+          85.57840475907354
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visuals": [
+        "link1"
+      ]
+    },
+    {
+      "name": "link2_link",
+      "originRoot": {
+        "position": [
+          9.574627493299692,
+          -10.833014180243861,
+          213.97453057614152
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visuals": [
+        "link2"
+      ]
+    },
+    {
+      "name": "end_effector_link",
+      "originRoot": {
+        "position": [
+          134.89402049148205,
+          0.15699102920240338,
+          156.19001175105643
+        ],
+        "relative_to": "arm_base_link",
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      "visuals": [
+        "end_effector"
+      ]
+    }
+  ]
+}

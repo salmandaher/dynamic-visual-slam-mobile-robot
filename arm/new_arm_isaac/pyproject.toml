@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "new_arm_isaac"
+version = "0.1.0"
+description = "Isaac Sim 5.1 digital twin + IsaacLab RL for the new_arm (3-DOF + passive wrist)."
+requires-python = ">=3.10"
+dependencies = ["numpy"]
+
+[project.optional-dependencies]
+# Provided by the Isaac Sim / IsaacLab environment; listed for documentation only.
+isaac = ["torch", "gymnasium"]
+
+[tool.setuptools.packages.find]
+include = ["new_arm_isaac*"]

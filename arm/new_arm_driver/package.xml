@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>new_arm_driver</name>
+  <version>0.1.0</version>
+  <description>
+    Lightweight host driver for the real ESPMax arm (direct servo path). Bridges
+    between ROS (MoveIt FollowJointTrajectory / manual joint commands) and the
+    ESP32 pass-through firmware: converts joint radians to Lobot pulses via a
+    per-joint calibration, streams trajectory waypoints to /arm/servo_command, and
+    turns /arm/servo_feedback back into /joint_states (computing the passive 4th
+    joint). The host owns the kinematics; the ESP32 only moves servos.
+  </description>
+  <maintainer email="nsnn1324@gmail.com">salman</maintainer>
+  <license>Proprietary</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

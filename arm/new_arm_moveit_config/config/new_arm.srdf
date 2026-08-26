@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!--
+  Semantic Robot Description Format (SRDF) for new_arm.
+
+  Adds semantics on top of the URDF: which joints form a planning group, named
+  poses, the virtual joint fixing the robot to the world, and which collision
+  checks can be safely skipped.
+-->
+<robot name="new_arm">
+
+  <!-- ===================== Planning group ===================== -->
+  <!-- The chain from the base to the wrist tip. The arm has 3 ACTUATED joints
+       (base yaw + shoulder + elbow); the 4th, end_effector_joint, is a passive,
+       mechanically-coupled leveling wrist (no motor) declared below.
+
+       The tip stays at end_effector_link because that link's frame ORIGIN is the
+       wrist pivot, whose POSITION does not depend on the passive joint angle
+       (rotating the joint only spins the frame in place). With position-only IK
+       (kinematics.yaml), the planned wrist position is therefore exact and the
+       solver only needs the 3 actuated joints. -->
+  <group name="new_arm">
+    <chain base_link="arm_base_link" tip_link="end_effector_link"/>
+    <passive_joint name="end_effector_joint"/>
+  </group>
+
+  <!-- ===================== Named poses ===================== -->
+  <!-- Only the 3 actuated joints; the passive wrist follows from the coupling. -->
+  <group_state name="home" group="new_arm">
+    <joint name="after_base_full_joint" value="0.0"/>
+    <joint name="link1_joint" value="0.0"/>
+    <joint name="link2_joint" value="0.0"/>
+  </group_state>
+
+  <group_state name="ready" group="new_arm">
+    <joint name="after_base_full_joint" value="0.0"/>
+    <joint name="link1_joint" value="0.4"/>
+    <joint name="link2_joint" value="-0.6"/>
+  </group_state>
+
+  <!-- ===================== Virtual joint ===================== -->
+  <!-- The arm base is bolted to the world (stationary charging stage). -->
+  <virtual_joint name="world_joint" type="fixed"
+                 parent_frame="world" child_link="arm_base_link"/>
+
+  <!-- ===================== Collision exclusions ===================== -->
+  <!-- Adjacent links are connected by a joint and never self-collide. -->
+  <disable_collisions link1="arm_base_link"        link2="after_base_full_link" reason="Adjacent"/>
+  <disable_collisions link1="after_base_full_link" link2="link1_link"           reason="Adjacent"/>
+  <disable_collisions link1="link1_link"           link2="link2_link"           reason="Adjacent"/>
+  <disable_collisions link1="link2_link"           link2="end_effector_link"    reason="Adjacent"/>
+  <!-- Non-adjacent pairs that cannot reach each other within the joint limits. -->
+  <disable_collisions link1="arm_base_link"        link2="link1_link"           reason="Never"/>
+  <disable_collisions link1="after_base_full_link" link2="link2_link"           reason="Never"/>
+  <disable_collisions link1="link1_link"           link2="end_effector_link"    reason="Never"/>
+
+</robot>
