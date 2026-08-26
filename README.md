@@ -109,8 +109,8 @@ close range) to **18 mm** (far-right cell). Passive-wrist orientation error stay
 
 ### RL insertion policy — Isaac Lab, PPO
 
-Seating threshold is 10 mm terminal plug-tip error. Development evaluation observed
-**≈ 94.5 %** terminal accuracy. The controlled comparison against the analytic
+Seating threshold is 10 mm terminal plug-tip error. The best checkpoint reaches
+**96.2 %** terminal accuracy. The controlled comparison against the analytic
 inverse-kinematics baseline is a *defined protocol in the report, not a completed result*.
 
 Domain-randomization ablation (250 episodes per condition) is the strongest transfer
