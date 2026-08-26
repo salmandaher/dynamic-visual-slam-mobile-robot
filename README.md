@@ -161,10 +161,25 @@ IsaacLab PPO tasks (via `rsl_rl`): `NewArm-Reach-v0` (~81 % within 1 cm),
 
 ### The base — repo root
 
-USD scenes for the Isaac Sim digital twin (`lizard.usd`, `new_built_robot*.usd`,
-`env/warehouse.usd`), the ROS 2 driver (`robot_drive_and_publish.py`), build and
-diagnostic scripts, SLAM evaluation figures in [`figures/`](figures/), and measured
-platform specifications in [`ROBOT_SPECS.md`](ROBOT_SPECS.md).
+The ROS 2 driver (`robot_drive_and_publish.py`), build and diagnostic scripts, SLAM
+evaluation figures in [`figures/`](figures/), and measured platform specifications
+in [`ROBOT_SPECS.md`](ROBOT_SPECS.md).
+
+#### Isaac Sim scenes
+
+`new_built_robot_ros.usd` is the self-contained robot-in-environment scene — the
+one to open first. It holds the robot (chassis, two drive wheels, two dual-omni
+casters, D435i), a ground plane, five obstacles, two walls, a dome light, and a
+PhysX scene with a tire-friction table. `new_built_robot_gui.usd` is the same
+scene with the operator UI graph; `lizard.usd` references it and is the stage
+`ROBOT_SPECS.md` was measured from.
+
+![Robot in the Isaac Sim scene](docs/images/sim_robot_scene.png)
+
+`env/warehouse.usd` is a larger 25.6 × 40 m warehouse (Isaac's Simple Warehouse
+layout). It is a **layout-only** file: it positions 424 prop references but ships
+no prop geometry, so its props resolve from NVIDIA's Isaac asset server and it
+needs network access on first open. Opening it offline gives an empty shell.
 
 ---
 
